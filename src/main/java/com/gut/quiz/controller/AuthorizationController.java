@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@SuppressWarnings("unused")
 @RestController
 @RequestMapping(path = "/auth")
 @RequiredArgsConstructor
@@ -17,11 +18,13 @@ public class AuthorizationController {
     private final AuthorizationService authorizationService;
 
     @PostMapping("/login")
+    @SuppressWarnings("unused")
     public AuthorizationResponse loginUser(@RequestBody AuthorizationRequest authorizationRequest) {
         return authorizationService.authorize(authorizationRequest);
     }
 
     @PostMapping("/register/teacher")
+    @SuppressWarnings("unused")
     public AuthorizationResponse registerTeacher(@RequestBody AuthorizationRequest authorizationRequest) {
         return authorizationService.registerTeacher(authorizationRequest);
     }
