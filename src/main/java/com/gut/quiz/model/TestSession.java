@@ -25,6 +25,11 @@ public class TestSession {
     private Double score;
     private boolean isCompleted;
 
+    // ЯВНЫЙ ГЕТТЕР для boolean поля
+    public boolean getIsCompleted() {
+        return isCompleted;
+    }
+
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();
