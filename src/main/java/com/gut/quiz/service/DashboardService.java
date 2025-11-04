@@ -9,6 +9,7 @@ import com.gut.quiz.repository.TestSessionRepository;
 import com.gut.quiz.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -20,15 +21,27 @@ public class DashboardService {
     private final TestSessionRepository testSessionRepository;
     private final UserRepository userRepository;
 
-    public DashboardDTO getDashboard() {
-        User teacher = userRepository.findAll().get(0);
+    /**
+     * Вспомогательный метод для получения текущего преподавателя
+     */
+    private User getTeacher(String userCode) {
+        return userRepository.findByCode(userCode)
+                .orElseThrow(() -> new RuntimeException("Преподаватель не найден. Невозможно получить данные дашборда."));
+    }
+
+    @Transactional(readOnly = true)
+    // Метод теперь принимает userCode
+    public DashboardDTO getDashboardData(String userCode) {
+        User teacher = getTeacher(userCode); // <-- Замена заглушки!
 
         int totalTests = testRepository.countByTeacher(teacher);
         int totalStudents = testSessionRepository.countDistinctStudentsByTeacher(teacher);
         Double averageScore = testSessionRepository.findAverageScoreByTeacher(teacher);
 
+        // Получаем все тесты и сортируем по дате создания, чтобы взять недавние
         List<Test> tests = testRepository.findByTeacher(teacher);
         List<TestSummary> recentTests = tests.stream()
+                .sorted((t1, t2) -> t2.getCreatedAt().compareTo(t1.getCreatedAt())) // Сортируем по убыванию даты
                 .map(this::mapToTestSummary)
                 .limit(3)
                 .toList();
@@ -37,7 +50,7 @@ public class DashboardService {
                 .teacherName(teacher.getFirstName() + " " + teacher.getLastName())
                 .totalTests(totalTests)
                 .totalStudents(totalStudents)
-                .averageScore(averageScore != null ? averageScore : 0.0)
+                .averageScore(averageScore != null ? Math.round(averageScore * 100.0) / 100.0 : 0.0)
                 .recentTests(recentTests)
                 .build();
     }
@@ -50,7 +63,7 @@ public class DashboardService {
                 .id(test.getId())
                 .title(test.getTitle())
                 .studentCount(studentCount)
-                .averageScore(averageScore != null ? averageScore : 0.0)
+                .averageScore(averageScore != null ? Math.round(averageScore * 100.0) / 100.0 : 0.0)
                 .status(test.isActive() ? "ACTIVE" : "COMPLETED")
                 .date(test.getCreatedAt().format(DateTimeFormatter.ofPattern("dd.MM")))
                 .build();

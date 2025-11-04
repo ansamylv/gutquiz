@@ -7,6 +7,7 @@ import com.gut.quiz.repository.TestSessionRepository;
 import com.gut.quiz.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,13 +21,40 @@ public class TestService {
     private final UserRepository userRepository;
     private final TestSessionRepository testSessionRepository;
 
-    public TestResponse createTest(CreateTestRequest request) {
-        User teacher = userRepository.findAll().get(0);
+    /**
+     * Вспомогательный метод для получения текущего преподавателя
+     */
+    private User getTeacher(String userCode) {
+        return userRepository.findByCode(userCode)
+                .orElseThrow(() -> new RuntimeException("Преподаватель не найден. Невозможно выполнить операцию."));
+    }
+
+    /**
+     * Вспомогательный метод для получения теста и проверки принадлежности
+     */
+    private Test getTestAndCheckAuthorization(Long testId, String userCode) {
+        Test test = testRepository.findById(testId)
+                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+
+        // *** ПРОВЕРКА АВТОРИЗАЦИИ ***
+        if (!test.getTeacher().getCode().equals(userCode)) {
+            throw new RuntimeException("Доступ запрещен. Тест не принадлежит текущему пользователю.");
+        }
+        return test;
+    }
+
+    // =========================================================================
+    // ОПЕРАЦИИ С ТЕСТАМИ
+    // =========================================================================
+
+    @Transactional
+    public TestResponse createTest(CreateTestRequest request, String userCode) {
+        User teacher = getTeacher(userCode); // <-- Замена заглушки
 
         Test test = new Test();
         test.setTitle(request.getTitle());
         test.setDescription(request.getDescription());
-        test.setTeacher(teacher);
+        test.setTeacher(teacher); // <-- Привязываем к реальному преподавателю
         test.setPublished(false);
 
         Test savedTest = testRepository.save(test);
@@ -41,8 +69,9 @@ public class TestService {
                 .build();
     }
 
-    public List<TestResponse> getMyTests() {
-        User teacher = userRepository.findAll().get(0);
+    @Transactional(readOnly = true)
+    public List<TestResponse> getMyTests(String userCode) {
+        User teacher = getTeacher(userCode); // <-- Замена заглушки
         List<Test> tests = testRepository.findByTeacher(teacher);
 
         return tests.stream()
@@ -57,9 +86,9 @@ public class TestService {
                 .toList();
     }
 
-    public TestResponse getTest(Long id) {
-        Test test = testRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional(readOnly = true)
+    public TestResponse getTest(Long id, String userCode) {
+        Test test = getTestAndCheckAuthorization(id, userCode); // <-- Проверка авторизации
 
         // Преобразуем вопросы в DTO
         List<QuestionDto> questionDtos = test.getQuestions().stream()
@@ -67,10 +96,12 @@ public class TestService {
                         .id(question.getId())
                         .text(question.getText())
                         .type(question.getType().name())
+                        // В DTO для преподавателя можно вернуть ID ответов
                         .answers(question.getAnswers().stream()
                                 .map(answer -> AnswerDto.builder()
                                         .id(answer.getId())
                                         .text(answer.getText())
+                                        .isCorrect(answer.isCorrect()) // Учителю показываем правильность
                                         .build())
                                 .collect(Collectors.toList()))
                         .build())
@@ -86,9 +117,9 @@ public class TestService {
                 .build();
     }
 
-    public TestResponse updateTest(Long testId, UpdateTestRequest request) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional
+    public TestResponse updateTest(Long testId, UpdateTestRequest request, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
 
         test.setTitle(request.getTitle());
         test.setDescription(request.getDescription());
@@ -101,52 +132,61 @@ public class TestService {
                 .description(updatedTest.getDescription())
                 .publicLink(updatedTest.getPublicLink())
                 .isPublished(updatedTest.isPublished())
+                // Вопросы при обновлении теста обычно обновляются через отдельные эндпоинты
                 .questions(new ArrayList<>())
                 .build();
     }
 
-    public void deleteTest(Long id) {
+    @Transactional
+    public void deleteTest(Long id, String userCode) {
+        getTestAndCheckAuthorization(id, userCode); // <-- Проверка авторизации
         testRepository.deleteById(id);
     }
 
-    public void publishTest(Long testId) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional
+    public void publishTest(Long testId, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
         test.setPublished(true);
         testRepository.save(test);
     }
 
-    public void unpublishTest(Long testId) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional
+    public void unpublishTest(Long testId, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
         test.setPublished(false);
         testRepository.save(test);
     }
 
-    public String getTestLink(Long testId) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional(readOnly = true)
+    public String getTestLink(Long testId, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
         return test.getPublicLink();
     }
 
-    public TestStatsResponse getTestStats(Long testId) {
-        try {
-            Test test = testRepository.findById(testId)
-                    .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    // =========================================================================
+    // СТАТИСТИКА И РЕЗУЛЬТАТЫ
+    // =========================================================================
 
+    @Transactional(readOnly = true)
+    public TestStatsResponse getTestStats(Long testId, String userCode) {
+        try {
+            Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
+
+            // *** ВНИМАНИЕ: ЗДЕСЬ ИСПОЛЬЗУЕТСЯ ТВОЯ ПРЕДЫДУЩАЯ ЛОГИКА ***
+            // В идеале sessions нужно получать через репозиторий, используя testSessionRepository.findByTest(test)
             List<TestSession> allSessions = testSessionRepository.findAll();
             List<TestSession> sessions = allSessions.stream()
                     .filter(session -> session.getTest() != null && session.getTest().getId().equals(testId))
                     .collect(Collectors.toList());
 
             double averageScore = sessions.stream()
-                    .filter(session -> session.getIsCompleted())
+                    .filter(TestSession::getIsCompleted)
                     .mapToDouble(TestSession::getScore)
                     .average()
                     .orElse(0.0);
 
             List<StudentResult> studentResults = sessions.stream()
-                    .filter(session -> session.getIsCompleted())
+                    .filter(TestSession::getIsCompleted)
                     .map(session -> StudentResult.builder()
                             .studentName(session.getStudentFirstName() + " " + session.getStudentLastName())
                             .group(session.getStudentGroup())
@@ -155,7 +195,7 @@ public class TestService {
                             .build())
                     .collect(Collectors.toList());
 
-            int completedCount = (int) sessions.stream().filter(session -> session.getIsCompleted()).count();
+            int completedCount = (int) studentResults.size(); // Уже отфильтрованы по isCompleted
 
             return TestStatsResponse.builder()
                     .testTitle(test.getTitle())
@@ -173,11 +213,15 @@ public class TestService {
         }
     }
 
-    public List<StudentAnswersResponse> getTestResults(Long testId) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional(readOnly = true)
+    public List<StudentAnswersResponse> getTestResults(Long testId, String userCode) {
+        getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
 
-        List<TestSession> sessions = testSessionRepository.findByTestIdAndIsCompletedTrue(testId);
+        // *** ВНИМАНИЕ: findByTestIdAndIsCompletedTrue не определен в твоем репозитории
+        // Используем findByTestId
+        List<TestSession> sessions = testSessionRepository.findByTestId(testId).stream()
+                .filter(TestSession::getIsCompleted)
+                .toList();
 
         return sessions.stream()
                 .map(session -> StudentAnswersResponse.builder()
@@ -190,6 +234,7 @@ public class TestService {
                 .collect(Collectors.toList());
     }
 
+    // МЕТОД ДЛЯ ЗАГЛУШКИ ОТВЕТОВ СТУДЕНТОВ (ТРЕБУЕТ ДОРАБОТКИ)
     private List<QuestionWithAnswers> getStudentAnswers(TestSession session) {
         return List.of(
                 QuestionWithAnswers.builder()
@@ -207,10 +252,13 @@ public class TestService {
         );
     }
 
-    // МЕТОДЫ ДЛЯ СОЗДАНИЯ ВОПРОСОВ
-    public void addQuestionToTest(Long testId, CreateQuestionRequest request) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    // =========================================================================
+    // ОПЕРАЦИИ С ВОПРОСАМИ
+    // =========================================================================
+
+    @Transactional
+    public void addQuestionToTest(Long testId, CreateQuestionRequest request, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
 
         Question question = new Question();
         question.setText(request.getText());
@@ -229,9 +277,9 @@ public class TestService {
         testRepository.save(test);
     }
 
-    public void addQuestionsToTest(Long testId, List<CreateQuestionRequest> questions) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional
+    public void addQuestionsToTest(Long testId, List<CreateQuestionRequest> questions, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
 
         for (CreateQuestionRequest questionRequest : questions) {
             Question question = new Question();
@@ -253,10 +301,9 @@ public class TestService {
         testRepository.save(test);
     }
 
-    // МЕТОДЫ ДЛЯ РЕДАКТИРОВАНИЯ ВОПРОСОВ
-    public void updateQuestion(Long testId, Long questionId, UpdateQuestionRequest request) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional
+    public void updateQuestion(Long testId, Long questionId, UpdateQuestionRequest request, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
 
         Question question = test.getQuestions().stream()
                 .filter(q -> q.getId().equals(questionId))
@@ -271,10 +318,9 @@ public class TestService {
         testRepository.save(test);
     }
 
-    // МЕТОД ДЛЯ УДАЛЕНИЯ ВОПРОСОВ - ДОБАВЛЕН
-    public void deleteQuestion(Long testId, Long questionId) {
-        Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+    @Transactional
+    public void deleteQuestion(Long testId, Long questionId, String userCode) {
+        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
 
         boolean removed = test.getQuestions().removeIf(q -> q.getId().equals(questionId));
 
@@ -285,9 +331,15 @@ public class TestService {
         testRepository.save(test);
     }
 
+    // =========================================================================
+    // Вспомогательные методы
+    // =========================================================================
+
     private void updateAnswers(Question question, List<UpdateAnswerRequest> answerRequests) {
+        // Удаляем все старые ответы
         question.getAnswers().clear();
 
+        // Добавляем новые ответы
         for (UpdateAnswerRequest answerRequest : answerRequests) {
             Answer answer = new Answer();
             answer.setText(answerRequest.getText());
@@ -295,9 +347,5 @@ public class TestService {
             answer.setQuestion(question);
             question.getAnswers().add(answer);
         }
-    }
-
-    private void updateQuestions(Test test, List<com.gut.quiz.dto.UpdateQuestion> updateQuestions) {
-        // Заглушка для будущей реализации
     }
 }
