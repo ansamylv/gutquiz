@@ -22,14 +22,14 @@ public class Question {
     @JoinColumn(name = "test_id")
     private Test test;
 
-    // ИНИЦИАЛИЗИРУЕМ список ответов!
+    // ИНИЦИАЛИЗИРУЕМ список ответов и используем каскадное сохранение
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Answer> answers = new ArrayList<>(); // ← ВАЖНО: = new ArrayList<>()
+    private List<Answer> answers = new ArrayList<>();
 
-    // Дополнительно можно добавить вспомогательные методы
+    // 💡 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: МЕТОД, УСТАНАВЛИВАЮЩИЙ ОБРАТНУЮ ССЫЛКУ!
     public void addAnswer(Answer answer) {
         answers.add(answer);
-        answer.setQuestion(this);
+        answer.setQuestion(this); // <-- ЭТО ТО, ЧТО ВЫЗЫВАЛО ОШИБКУ 500
     }
 
     public void removeAnswer(Answer answer) {

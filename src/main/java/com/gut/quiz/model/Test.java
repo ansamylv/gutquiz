@@ -2,6 +2,8 @@ package com.gut.quiz.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,12 +39,19 @@ public class Test {
         createdAt = LocalDateTime.now();
         isActive = true;
 
-        // ДОБАВЛЯЕМ генерацию публичной ссылки
         if (this.publicLink == null) {
-            // Генерируем уникальную ссылку
-            String baseSlug = this.title.toLowerCase()
-                    .replaceAll("[^a-zа-я0-9]", "-")
-                    .replaceAll("-+", "-");
+            // 💡 ИСПРАВЛЕНИЕ: Транслитерация и удаление всех небезопасных символов
+            String tempSlug = this.title.toLowerCase();
+
+            // 1. Убираем ударения и спецсимволы (Normalizer.Form.NFD)
+            tempSlug = Normalizer.normalize(tempSlug, Normalizer.Form.NFD);
+
+            // 2. Оставляем только латинские буквы и цифры (Удаляем кириллицу)
+            String baseSlug = tempSlug
+                    .replaceAll("[^a-z0-9]", "-") // Оставляем только a-z и 0-9
+                    .replaceAll("-+", "-")
+                    .replaceAll("^-|-$", ""); // Удаляем начальные/конечные дефисы
+
             String randomId = UUID.randomUUID().toString().substring(0, 8);
             this.publicLink = baseSlug + "-" + randomId;
         }

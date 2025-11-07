@@ -8,7 +8,7 @@ import com.gut.quiz.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDateTime;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,40 +21,38 @@ public class TestService {
     private final UserRepository userRepository;
     private final TestSessionRepository testSessionRepository;
 
-    /**
-     * Вспомогательный метод для получения текущего преподавателя
-     */
-    private User getTeacher(String userCode) {
-        return userRepository.findByCode(userCode)
-                .orElseThrow(() -> new RuntimeException("Преподаватель не найден. Невозможно выполнить операцию."));
+    // ======================================================================================
+    //                           АВТОРИЗАЦИЯ И ПРОВЕРКИ
+    // ======================================================================================
+
+    private User findTeacher(String teacherCode) {
+        return userRepository.findByCode(teacherCode)
+                .orElseThrow(() -> new RuntimeException("Преподаватель с кодом " + teacherCode + " не найден."));
     }
 
-    /**
-     * Вспомогательный метод для получения теста и проверки принадлежности
-     */
-    private Test getTestAndCheckAuthorization(Long testId, String userCode) {
+    private Test findTestAndCheckOwner(Long testId, String teacherCode) {
+        User teacher = findTeacher(teacherCode);
         Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+                .orElseThrow(() -> new RuntimeException("Тест с ID " + testId + " не найден."));
 
-        // *** ПРОВЕРКА АВТОРИЗАЦИИ ***
-        if (!test.getTeacher().getCode().equals(userCode)) {
-            throw new RuntimeException("Доступ запрещен. Тест не принадлежит текущему пользователю.");
+        if (!test.getTeacher().getId().equals(teacher.getId())) {
+            throw new RuntimeException("У вас нет прав для доступа к этому тесту.");
         }
         return test;
     }
 
-    // =========================================================================
-    // ОПЕРАЦИИ С ТЕСТАМИ
-    // =========================================================================
+    // ======================================================================================
+    //                           МЕТОДЫ УЧИТЕЛЯ (CRUD, УПРАВЛЕНИЕ)
+    // ======================================================================================
 
     @Transactional
-    public TestResponse createTest(CreateTestRequest request, String userCode) {
-        User teacher = getTeacher(userCode); // <-- Замена заглушки
+    public TestResponse createTest(CreateTestRequest request, String teacherCode) {
+        User teacher = findTeacher(teacherCode);
 
         Test test = new Test();
         test.setTitle(request.getTitle());
         test.setDescription(request.getDescription());
-        test.setTeacher(teacher); // <-- Привязываем к реальному преподавателю
+        test.setTeacher(teacher);
         test.setPublished(false);
 
         Test savedTest = testRepository.save(test);
@@ -69,42 +67,30 @@ public class TestService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
-    public List<TestResponse> getMyTests(String userCode) {
-        User teacher = getTeacher(userCode); // <-- Замена заглушки
-        List<Test> tests = testRepository.findByTeacher(teacher);
+    public List<TestResponse> getMyTests(String teacherCode) {
+        User teacher = findTeacher(teacherCode);
 
-        return tests.stream()
-                .map(test -> TestResponse.builder()
-                        .id(test.getId())
-                        .title(test.getTitle())
-                        .description(test.getDescription())
-                        .publicLink(test.getPublicLink())
-                        .isPublished(test.isPublished())
-                        .questions(new ArrayList<>())
-                        .build())
-                .toList();
+        return testRepository.findByTeacher(teacher).stream()
+                .map(this::mapToTestResponse)
+                .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
-    public TestResponse getTest(Long id, String userCode) {
-        Test test = getTestAndCheckAuthorization(id, userCode); // <-- Проверка авторизации
+    private TestResponse mapToTestResponse(Test test) {
+        return TestResponse.builder()
+                .id(test.getId())
+                .title(test.getTitle())
+                .description(test.getDescription())
+                .publicLink(test.getPublicLink())
+                .isPublished(test.isPublished())
+                .questions(new ArrayList<>())
+                .build();
+    }
 
-        // Преобразуем вопросы в DTO
+    public TestResponse getTestDetails(Long id, String teacherCode) {
+        Test test = findTestAndCheckOwner(id, teacherCode);
+
         List<QuestionDto> questionDtos = test.getQuestions().stream()
-                .map(question -> QuestionDto.builder()
-                        .id(question.getId())
-                        .text(question.getText())
-                        .type(question.getType().name())
-                        // В DTO для преподавателя можно вернуть ID ответов
-                        .answers(question.getAnswers().stream()
-                                .map(answer -> AnswerDto.builder()
-                                        .id(answer.getId())
-                                        .text(answer.getText())
-                                        .isCorrect(answer.isCorrect()) // Учителю показываем правильность
-                                        .build())
-                                .collect(Collectors.toList()))
-                        .build())
+                .map(this::mapToQuestionDto)
                 .collect(Collectors.toList());
 
         return TestResponse.builder()
@@ -117,235 +103,116 @@ public class TestService {
                 .build();
     }
 
-    @Transactional
-    public TestResponse updateTest(Long testId, UpdateTestRequest request, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
+    private QuestionDto mapToQuestionDto(Question question) {
+        List<AnswerDto> answerDtos = question.getAnswers().stream()
+                .map(answer -> AnswerDto.builder()
+                        .id(answer.getId())
+                        .text(answer.getText())
+                        .isCorrect(answer.isCorrect())
+                        .build())
+                .collect(Collectors.toList());
 
-        test.setTitle(request.getTitle());
-        test.setDescription(request.getDescription());
-
-        Test updatedTest = testRepository.save(test);
-
-        return TestResponse.builder()
-                .id(updatedTest.getId())
-                .title(updatedTest.getTitle())
-                .description(updatedTest.getDescription())
-                .publicLink(updatedTest.getPublicLink())
-                .isPublished(updatedTest.isPublished())
-                // Вопросы при обновлении теста обычно обновляются через отдельные эндпоинты
-                .questions(new ArrayList<>())
+        return QuestionDto.builder()
+                .id(question.getId())
+                .text(question.getText())
+                .type(question.getType().name())
+                .answers(answerDtos)
                 .build();
     }
 
-    @Transactional
-    public void deleteTest(Long id, String userCode) {
-        getTestAndCheckAuthorization(id, userCode); // <-- Проверка авторизации
-        testRepository.deleteById(id);
+    public void deleteTest(Long id, String teacherCode) {
+        Test test = findTestAndCheckOwner(id, teacherCode);
+        testRepository.delete(test);
     }
 
     @Transactional
-    public void publishTest(Long testId, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
-        test.setPublished(true);
-        testRepository.save(test);
-    }
+    public void publishTest(Long id, boolean publish, String teacherCode) {
+        Test test = findTestAndCheckOwner(id, teacherCode);
 
-    @Transactional
-    public void unpublishTest(Long testId, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
-        test.setPublished(false);
-        testRepository.save(test);
-    }
-
-    @Transactional(readOnly = true)
-    public String getTestLink(Long testId, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
-        return test.getPublicLink();
-    }
-
-    // =========================================================================
-    // СТАТИСТИКА И РЕЗУЛЬТАТЫ
-    // =========================================================================
-
-    @Transactional(readOnly = true)
-    public TestStatsResponse getTestStats(Long testId, String userCode) {
-        try {
-            Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
-
-            // *** ВНИМАНИЕ: ЗДЕСЬ ИСПОЛЬЗУЕТСЯ ТВОЯ ПРЕДЫДУЩАЯ ЛОГИКА ***
-            // В идеале sessions нужно получать через репозиторий, используя testSessionRepository.findByTest(test)
-            List<TestSession> allSessions = testSessionRepository.findAll();
-            List<TestSession> sessions = allSessions.stream()
-                    .filter(session -> session.getTest() != null && session.getTest().getId().equals(testId))
-                    .collect(Collectors.toList());
-
-            double averageScore = sessions.stream()
-                    .filter(TestSession::getIsCompleted)
-                    .mapToDouble(TestSession::getScore)
-                    .average()
-                    .orElse(0.0);
-
-            List<StudentResult> studentResults = sessions.stream()
-                    .filter(TestSession::getIsCompleted)
-                    .map(session -> StudentResult.builder()
-                            .studentName(session.getStudentFirstName() + " " + session.getStudentLastName())
-                            .group(session.getStudentGroup())
-                            .score(session.getScore() != null ? session.getScore() : 0)
-                            .completedAt(session.getCompletedAt() != null ? session.getCompletedAt() : LocalDateTime.now())
-                            .build())
-                    .collect(Collectors.toList());
-
-            int completedCount = (int) studentResults.size(); // Уже отфильтрованы по isCompleted
-
-            return TestStatsResponse.builder()
-                    .testTitle(test.getTitle())
-                    .totalStudents(sessions.size())
-                    .averageScore(Math.round(averageScore * 100.0) / 100.0)
-                    .completedSessions(completedCount)
-                    .activeSessions(sessions.size() - completedCount)
-                    .studentResults(studentResults)
-                    .build();
-
-        } catch (Exception e) {
-            System.out.println("=== DEBUG: ОШИБКА в getTestStats: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Ошибка при получении статистики: " + e.getMessage());
+        if (publish && test.getQuestions().isEmpty()) {
+            throw new RuntimeException("Нельзя опубликовать тест без вопросов.");
         }
+        test.setPublished(publish);
+        testRepository.save(test);
     }
-
-    @Transactional(readOnly = true)
-    public List<StudentAnswersResponse> getTestResults(Long testId, String userCode) {
-        getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
-
-        // *** ВНИМАНИЕ: findByTestIdAndIsCompletedTrue не определен в твоем репозитории
-        // Используем findByTestId
-        List<TestSession> sessions = testSessionRepository.findByTestId(testId).stream()
-                .filter(TestSession::getIsCompleted)
-                .toList();
-
-        return sessions.stream()
-                .map(session -> StudentAnswersResponse.builder()
-                        .studentName(session.getStudentFirstName() + " " + session.getStudentLastName())
-                        .group(session.getStudentGroup())
-                        .score(session.getScore())
-                        .completedAt(session.getCompletedAt())
-                        .answers(getStudentAnswers(session))
-                        .build())
-                .collect(Collectors.toList());
-    }
-
-    // МЕТОД ДЛЯ ЗАГЛУШКИ ОТВЕТОВ СТУДЕНТОВ (ТРЕБУЕТ ДОРАБОТКИ)
-    private List<QuestionWithAnswers> getStudentAnswers(TestSession session) {
-        return List.of(
-                QuestionWithAnswers.builder()
-                        .questionText("Сколько будет 2 + 2?")
-                        .studentAnswer("4")
-                        .correctAnswer("4")
-                        .isCorrect(true)
-                        .build(),
-                QuestionWithAnswers.builder()
-                        .questionText("Столица России?")
-                        .studentAnswer("Москва")
-                        .correctAnswer("Москва")
-                        .isCorrect(true)
-                        .build()
-        );
-    }
-
-    // =========================================================================
-    // ОПЕРАЦИИ С ВОПРОСАМИ
-    // =========================================================================
 
     @Transactional
-    public void addQuestionToTest(Long testId, CreateQuestionRequest request, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
+    public void addQuestions(Long testId, List<CreateQuestionRequest> requests, String teacherCode) {
+        Test test = findTestAndCheckOwner(testId, teacherCode);
 
+        List<Question> newQuestions = requests.stream()
+                .map(request -> mapToQuestion(request, test))
+                .collect(Collectors.toList());
+
+        test.getQuestions().addAll(newQuestions);
+        testRepository.save(test);
+    }
+
+    private Question mapToQuestion(CreateQuestionRequest request, Test test) {
         Question question = new Question();
+        question.setTest(test);
         question.setText(request.getText());
         question.setType(QuestionType.valueOf(request.getType()));
-        question.setTest(test);
 
-        for (CreateAnswerRequest answerRequest : request.getAnswers()) {
-            Answer answer = new Answer();
-            answer.setText(answerRequest.getText());
-            answer.setCorrect(answerRequest.isCorrect());
-            answer.setQuestion(question);
-            question.getAnswers().add(answer);
-        }
-
-        test.getQuestions().add(question);
-        testRepository.save(test);
-    }
-
-    @Transactional
-    public void addQuestionsToTest(Long testId, List<CreateQuestionRequest> questions, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
-
-        for (CreateQuestionRequest questionRequest : questions) {
-            Question question = new Question();
-            question.setText(questionRequest.getText());
-            question.setType(QuestionType.valueOf(questionRequest.getType()));
-            question.setTest(test);
-
-            for (CreateAnswerRequest answerRequest : questionRequest.getAnswers()) {
+        if (request.getAnswers() != null) {
+            request.getAnswers().forEach(answerRequest -> {
                 Answer answer = new Answer();
                 answer.setText(answerRequest.getText());
                 answer.setCorrect(answerRequest.isCorrect());
-                answer.setQuestion(question);
-                question.getAnswers().add(answer);
-            }
-
-            test.getQuestions().add(question);
+                question.addAnswer(answer);
+            });
         }
-
-        testRepository.save(test);
+        return question;
     }
 
     @Transactional
-    public void updateQuestion(Long testId, Long questionId, UpdateQuestionRequest request, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
-
-        Question question = test.getQuestions().stream()
-                .filter(q -> q.getId().equals(questionId))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Вопрос не найден"));
-
-        question.setText(request.getText());
-        question.setType(QuestionType.valueOf(request.getType()));
-
-        updateAnswers(question, request.getAnswers());
-
-        testRepository.save(test);
-    }
-
-    @Transactional
-    public void deleteQuestion(Long testId, Long questionId, String userCode) {
-        Test test = getTestAndCheckAuthorization(testId, userCode); // <-- Проверка авторизации
+    public void deleteQuestion(Long testId, Long questionId, String teacherCode) {
+        Test test = findTestAndCheckOwner(testId, teacherCode);
 
         boolean removed = test.getQuestions().removeIf(q -> q.getId().equals(questionId));
 
         if (!removed) {
-            throw new RuntimeException("Вопрос не найден");
+            throw new RuntimeException("Вопрос не найден.");
         }
 
         testRepository.save(test);
     }
 
-    // =========================================================================
-    // Вспомогательные методы
-    // =========================================================================
+    // 9. Получение статистики теста
+    public TestStatsResponse getTestStats(Long id, String teacherCode) {
+        Test test = findTestAndCheckOwner(id, teacherCode);
 
-    private void updateAnswers(Question question, List<UpdateAnswerRequest> answerRequests) {
-        // Удаляем все старые ответы
-        question.getAnswers().clear();
+        // 1. Считаем только ЗАВЕРШЕННЫЕ сессии
+        int completedSessions = testSessionRepository.countByTestIdAndIsCompletedTrue(id);
 
-        // Добавляем новые ответы
-        for (UpdateAnswerRequest answerRequest : answerRequests) {
-            Answer answer = new Answer();
-            answer.setText(answerRequest.getText());
-            answer.setCorrect(answerRequest.isCorrect());
-            answer.setQuestion(question);
-            question.getAnswers().add(answer);
-        }
+        // 2. Считаем ВСЕ сессии (для определения активных)
+        int allSessionsCount = testSessionRepository.countByTestId(id);
+
+        // 3. Вычисляем активные сессии (незавершенные)
+        int activeSessions = allSessionsCount - completedSessions;
+
+        // 4. Находим средний балл только по ЗАВЕРШЕННЫМ сессиям
+        Double averageScore = testSessionRepository.findAverageScoreByTest(test);
+
+        // 5. ИСПРАВЛЕНИЕ: Получаем результаты ТОЛЬКО ЗАВЕРШЕННЫХ сессий
+        List<TestSession> completedSessionsList = testSessionRepository.findByTestIdAndIsCompletedTrue(id);
+
+        List<StudentResult> results = completedSessionsList.stream()
+                .map(session -> StudentResult.builder()
+                        .studentName(session.getStudentFirstName() + " " + session.getStudentLastName())
+                        .group(session.getStudentGroup())
+                        .score(session.getScore() != null ? session.getScore() : 0.0)
+                        .completedAt(session.getCompletedAt())
+                        .build())
+                .collect(Collectors.toList());
+
+        return TestStatsResponse.builder()
+                .testTitle(test.getTitle())
+                .totalStudents(completedSessions)
+                .completedSessions(completedSessions)
+                .averageScore(averageScore != null ? averageScore : 0.0)
+                .activeSessions(activeSessions)
+                .studentResults(results)
+                .build();
     }
 }

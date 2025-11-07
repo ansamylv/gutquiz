@@ -28,12 +28,10 @@ public interface TestSessionRepository extends JpaRepository<TestSession, Long> 
     @Query("SELECT AVG(ts.score) FROM TestSession ts WHERE ts.test = :test AND ts.isCompleted = true")
     Double findAverageScoreByTest(@Param("test") Test test);
 
-    // БАЗОВЫЕ МЕТОДЫ ДЛЯ СТАТИСТИКИ:
     List<TestSession> findByTestId(Long testId);
     int countByTestId(Long testId);
     int countByTestIdAndIsCompletedTrue(Long testId);
 
-    // ДОБАВЛЯЕМ МЕТОД ДЛЯ РЕЗУЛЬТАТОВ СТУДЕНТОВ:
     @Query("SELECT ts FROM TestSession ts WHERE ts.test.id = :testId AND ts.isCompleted = true")
     List<TestSession> findByTestIdAndIsCompletedTrue(@Param("testId") Long testId);
 }

@@ -1,19 +1,21 @@
--- Очистка таблиц
+-- 1. ОЧИСТКА: Удаляем в порядке, обратном ссылке (от ответов до пользователей)
+DELETE FROM answers;
+DELETE FROM questions;
 DELETE FROM test_sessions;
 DELETE FROM tests;
 DELETE FROM users;
 
--- Вставка пользователя
-INSERT INTO users (code, first_name, last_name, middle_name) VALUES
-('teacher123', 'Иван', 'Петров', 'Сергеевич');
+-- 2. ВСТАВКА: Пользователь (ID=1)
+INSERT INTO users (id, code, first_name, last_name, middle_name) VALUES
+(1, 'teacher123', 'Иван', 'Петров', 'Сергеевич');
 
--- Вставка тестов с новым полем is_published
-INSERT INTO tests (title, description, teacher_id, created_at, is_active, is_published, public_link) VALUES
-('Математика - тест 1', 'Базовые операции', 1, NOW(), true, true, 'math123'),
-('Физика - контрольная', 'Механика', 1, NOW(), true, true, 'physics123'),
-('История - экзамен', 'Древний мир', 1, NOW(), false, false, 'history123');
+-- 3. ВСТАВКА: Тесты (ссылаются на teacher_id = 1)
+INSERT INTO tests (id, title, description, teacher_id, created_at, is_active, is_published, public_link) VALUES
+(1, 'Математика - тест 1', 'Базовые операции', 1, NOW(), true, true, 'math123'),
+(2, 'Физика - контрольная', 'Механика', 1, NOW(), true, true, 'physics123'),
+(3, 'История - экзамен', 'Древний мир', 1, NOW(), false, false, 'history123');
 
--- Вставка тестовых сессий
+-- 4. ВСТАВКА: Тестовые сессии (ссылаются на test_id 1 и 2)
 INSERT INTO test_sessions (test_id, student_first_name, student_last_name, student_group, started_at, completed_at, score, is_completed) VALUES
 (1, 'Алексей', 'Сидоров', 'Группа 101', NOW(), NOW(), 85.5, true),
 (1, 'Мария', 'Иванова', 'Группа 101', NOW(), NOW(), 92.0, true),

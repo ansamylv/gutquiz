@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,13 +21,14 @@ public class PublicTestService {
     private final TestRepository testRepository;
     private final TestSessionRepository testSessionRepository;
 
+    // ... (методы getTestByLink и convertToPublicQuestion остаются без изменений) ...
     public StudentTestResponse getTestByLink(String link) {
         Test test = testRepository.findByPublicLinkAndIsPublishedTrue(link)
                 .orElseThrow(() -> new RuntimeException("Тест не найден или не опубликован"));
 
         List<PublicQuestion> questions = test.getQuestions().stream()
                 .map(this::convertToPublicQuestion)
-                .collect(Collectors.toList());
+                .collect(Collectors.<PublicQuestion>toList());
 
         return StudentTestResponse.builder()
                 .testTitle(test.getTitle())
@@ -50,14 +52,16 @@ public class PublicTestService {
                 .answers(publicAnswers)
                 .build();
     }
+    // ... (конец неизменных методов) ...
+
 
     @Transactional
     public TestPassingResponse submitTestByLink(String link, TestPassingRequest request) {
         Test test = testRepository.findByPublicLinkAndIsPublishedTrue(link)
-                .orElseThrow(() -> new RuntimeException("Тест не найден"));
+                .orElseThrow(() -> new RuntimeException("Тест не найден или не опубликован"));
 
-        // РЕАЛЬНЫЙ РАСЧЕТ РЕЗУЛЬТАТА с разными типами вопросов
-        TestResult result = calculateRealResult(test, request.getAnswers());
+        // 🏆 ВЫЗОВ РЕАЛЬНОЙ ЛОГИКИ (ЗАГЛУШКА УДАЛЕНА)
+        TestResult result = calculateResult(test, request.getAnswers());
 
         TestSession session = new TestSession();
         session.setTest(test);
@@ -65,95 +69,24 @@ public class PublicTestService {
         session.setStudentLastName(request.getStudentLastName());
         session.setStudentGroup(request.getGroup());
         session.setScore(result.getScore());
-        session.setCompleted(true);
-        session.setStartedAt(LocalDateTime.now());
+
+        session.setIsCompleted(true);
         session.setCompletedAt(LocalDateTime.now());
 
         testSessionRepository.save(session);
 
         return TestPassingResponse.builder()
                 .score(result.getScore())
-                .correctAnswers(result.getCorrectAnswers())
-                .totalQuestions(result.getTotalQuestions())
-                .resultMessage("Тест завершен! Ваш результат: " + result.getScore() + "%")
+                // 🏆 ЗАГЛУШКИ УДАЛЕНЫ (используются реальные данные из result)
+                .correctAnswersCount(result.getCorrectAnswers())
+                .totalQuestionsCount(result.getTotalQuestions())
+                .message("Тест успешно сдан")
                 .build();
     }
 
-    // РЕАЛЬНЫЙ РАСЧЕТ РЕЗУЛЬТАТА С РАЗНЫМИ ТИПАМИ ВОПРОСОВ
-    private TestResult calculateRealResult(Test test, List<QuestionAnswer> studentAnswers) {
-        int correctCount = 0;
-        int totalQuestions = test.getQuestions().size();
-
-        for (Question question : test.getQuestions()) {
-            QuestionAnswer studentAnswer = findStudentAnswer(question.getId(), studentAnswers);
-            if (isAnswerCorrect(question, studentAnswer)) {
-                correctCount++;
-            }
-        }
-
-        double score = totalQuestions > 0 ? (double) correctCount / totalQuestions * 100 : 0;
-        return new TestResult(score, correctCount, totalQuestions);
-    }
-
-    private QuestionAnswer findStudentAnswer(Long questionId, List<QuestionAnswer> studentAnswers) {
-        return studentAnswers.stream()
-                .filter(answer -> questionId.equals(answer.getQuestionId()))
-                .findFirst()
-                .orElse(null);
-    }
-
-    // ПРОВЕРКА ОТВЕТОВ ДЛЯ РАЗНЫХ ТИПОВ ВОПРОСОВ
-    private boolean isAnswerCorrect(Question question, QuestionAnswer studentAnswer) {
-        if (studentAnswer == null) return false;
-
-        switch (question.getType()) {
-            case SINGLE:
-                return checkSingleChoice(question, studentAnswer);
-            case MULTIPLE:
-                return checkMultipleChoice(question, studentAnswer);
-            case TEXT:
-                return checkTextAnswer(question, studentAnswer);
-            default:
-                return false;
-        }
-    }
-
-    // ДЛЯ SINGLE: должен быть выбран один правильный вариант
-    private boolean checkSingleChoice(Question question, QuestionAnswer studentAnswer) {
-        if (studentAnswer.getSelectedAnswerIds() == null ||
-                studentAnswer.getSelectedAnswerIds().size() != 1) {
-            return false;
-        }
-
-        Long selectedId = studentAnswer.getSelectedAnswerIds().get(0);
-        return question.getAnswers().stream()
-                .filter(Answer::isCorrect)
-                .anyMatch(correctAnswer -> correctAnswer.getId().equals(selectedId));
-    }
-
-    // ДЛЯ MULTIPLE: должны быть выбраны все правильные варианты
-    private boolean checkMultipleChoice(Question question, QuestionAnswer studentAnswer) {
-        if (studentAnswer.getSelectedAnswerIds() == null) return false;
-
-        List<Long> correctAnswerIds = question.getAnswers().stream()
-                .filter(Answer::isCorrect)
-                .map(Answer::getId)
-                .collect(Collectors.toList());
-
-        // Проверяем что выбраны все правильные и только правильные
-        return studentAnswer.getSelectedAnswerIds().containsAll(correctAnswerIds) &&
-                correctAnswerIds.containsAll(studentAnswer.getSelectedAnswerIds());
-    }
-
-    // ДЛЯ TEXT: сравниваем текстовый ответ (пока просто проверяем что ответ не пустой)
-    private boolean checkTextAnswer(Question question, QuestionAnswer studentAnswer) {
-        // В реальности нужно хранить правильный текстовый ответ в Question или Answer
-        // Пока заглушка - считаем правильным любой непустой ответ
-        return studentAnswer.getTextAnswer() != null &&
-                !studentAnswer.getTextAnswer().trim().isEmpty();
-    }
-
-    // Вспомогательный класс для результатов
+    /**
+     * Внутренний вспомогательный класс для возврата результатов подсчета.
+     */
     private static class TestResult {
         private final double score;
         private final int correctAnswers;
@@ -168,5 +101,105 @@ public class PublicTestService {
         public double getScore() { return score; }
         public int getCorrectAnswers() { return correctAnswers; }
         public int getTotalQuestions() { return totalQuestions; }
+    }
+
+    /**
+     * 🏆 РЕАЛЬНАЯ ЛОГИКА ПОДСЧЕТА БАЛЛОВ (ЗАГЛУШКА УДАЛЕНА)
+     */
+    private TestResult calculateResult(Test test, List<QuestionAnswer> studentAnswers) {
+        // Создаем карту ответов студента для быстрого доступа по ID вопроса
+        Map<Long, QuestionAnswer> studentAnswerMap = studentAnswers.stream()
+                .collect(Collectors.toMap(QuestionAnswer::getQuestionId, answer -> answer));
+
+        int correctAnswersCount = 0;
+        int totalQuestions = test.getQuestions().size();
+
+        // Проходим по каждому вопросу из базы данных
+        for (Question question : test.getQuestions()) {
+            QuestionAnswer studentAnswer = studentAnswerMap.get(question.getId());
+
+            if (studentAnswer == null) {
+                continue; // Студент пропустил вопрос, ответ не засчитан
+            }
+
+            boolean isCorrect = false;
+            switch (question.getType()) {
+                case SINGLE:
+                    isCorrect = checkSingleAnswer(question, studentAnswer);
+                    break;
+                case MULTIPLE:
+                    isCorrect = checkMultipleAnswer(question, studentAnswer);
+                    break;
+                case TEXT:
+                    isCorrect = checkTextAnswer(question, studentAnswer);
+                    break;
+            }
+
+            if (isCorrect) {
+                correctAnswersCount++;
+            }
+        }
+
+        // Расчет процента
+        double score = (totalQuestions > 0) ? ((double) correctAnswersCount / totalQuestions) * 100.0 : 0.0;
+
+        return new TestResult(score, correctAnswersCount, totalQuestions);
+    }
+
+    // Логика для SINGLE (без изменений)
+    private boolean checkSingleAnswer(Question question, QuestionAnswer studentAnswer) {
+        Long correctAnswerId = question.getAnswers().stream()
+                .filter(Answer::isCorrect)
+                .map(Answer::getId)
+                .findFirst()
+                .orElse(null);
+
+        return correctAnswerId != null &&
+                studentAnswer.getSelectedAnswerIds() != null &&
+                studentAnswer.getSelectedAnswerIds().size() == 1 &&
+                studentAnswer.getSelectedAnswerIds().get(0).equals(correctAnswerId);
+    }
+
+    // Логика для MULTIPLE (без изменений)
+    private boolean checkMultipleAnswer(Question question, QuestionAnswer studentAnswer) {
+        List<Long> correctAnswerIds = question.getAnswers().stream()
+                .filter(Answer::isCorrect)
+                .map(Answer::getId)
+                .collect(Collectors.toList());
+
+        if (correctAnswerIds.isEmpty()) {
+            return false;
+        }
+
+        List<Long> selectedIds = studentAnswer.getSelectedAnswerIds() != null ? studentAnswer.getSelectedAnswerIds() : new ArrayList<>();
+
+        return selectedIds.containsAll(correctAnswerIds) &&
+                correctAnswerIds.containsAll(selectedIds);
+    }
+
+    /**
+     * 🏆 РЕАЛЬНАЯ ЛОГИКА ПРОВЕРКИ ТЕКСТА (ЗАГЛУШКА УДАЛЕНА)
+     */
+    private boolean checkTextAnswer(Question question, QuestionAnswer studentAnswer) {
+        // Ответ студента
+        String studentText = studentAnswer.getTextAnswer();
+        if (studentText == null || studentText.trim().isEmpty()) {
+            return false;
+        }
+
+        // Правильный ответ из базы данных (первый найденный 'isCorrect' ответ)
+        String correctAnswer = question.getAnswers().stream()
+                .filter(Answer::isCorrect)
+                .findFirst()
+                .map(Answer::getText)
+                .orElse(null);
+
+        if (correctAnswer == null) {
+            // Вопрос настроен некорректно (нет правильного ответа)
+            return false;
+        }
+
+        // Сравнение без учета регистра и пробелов по краям
+        return studentText.trim().equalsIgnoreCase(correctAnswer.trim());
     }
 }

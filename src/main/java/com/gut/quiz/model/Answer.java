@@ -14,7 +14,7 @@ public class Answer {
     private String text;
     private boolean isCorrect;
 
-    @ManyToOne
+    @ManyToOne // <-- Связь с Question
     @JoinColumn(name = "question_id")
     private Question question;
 }

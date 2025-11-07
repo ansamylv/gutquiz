@@ -8,4 +8,5 @@ import lombok.Data;
 public class AnswerDto {
     private Long id;
     private String text;
+    private boolean isCorrect;
 }

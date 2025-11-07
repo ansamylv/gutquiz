@@ -32,13 +32,18 @@ public class StudentService {
     }
 
     public TestPassingResponse submitTest(TestPassingRequest request) {
-        // Здесь будет логика проверки ответов и подсчета баллов
+        // ВНИМАНИЕ: Эта реализация все еще ЛОГИЧЕСКАЯ ЗАГЛУШКА.
+        // Она не знает, какой тест (Test) проверять.
+
         TestSession session = new TestSession();
         session.setStudentFirstName(request.getStudentFirstName());
         session.setStudentLastName(request.getStudentLastName());
         session.setStudentGroup(request.getGroup());
+
+        // 1. ЗАГЛУШКА БАЛЛОВ (calculateScore)
         session.setScore(calculateScore(request));
-        session.setCompleted(true);
+
+        session.setIsCompleted(true);
         session.setStartedAt(LocalDateTime.now());
         session.setCompletedAt(LocalDateTime.now());
 
@@ -46,12 +51,14 @@ public class StudentService {
 
         return TestPassingResponse.builder()
                 .score(session.getScore())
-                .correctAnswers(3) // заглушка
-                .totalQuestions(5) // заглушка
-                .resultMessage("Тест завершен! Ваш результат: " + session.getScore() + "%")
+                // 🏆 ИСПРАВЛЕНЫ ОШИБКИ КОМПИЛЯЦИИ БИЛДЕРА
+                .correctAnswersCount(3) // (Все еще заглушка)
+                .totalQuestionsCount(5) // (Все еще заглушка)
+                .message("Тест завершен! Ваш результат: " + session.getScore() + "%")
                 .build();
     }
 
+    // 2. ЗАГЛУШКА ЛОГИКИ ПОДСЧЕТА
     private double calculateScore(TestPassingRequest request) {
         // Заглушка - всегда 80%
         return 80.0;

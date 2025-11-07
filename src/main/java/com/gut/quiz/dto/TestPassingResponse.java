@@ -6,8 +6,12 @@ import lombok.Data;
 @Data
 @Builder
 public class TestPassingResponse {
+
     private double score;
-    private int correctAnswers;
-    private int totalQuestions;
-    private String resultMessage;
+
+    // Имена полей, которые мы используем в билдере
+    private int correctAnswersCount;
+    private int totalQuestionsCount;
+
+    private String message;
 }
