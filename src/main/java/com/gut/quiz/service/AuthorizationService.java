@@ -4,6 +4,7 @@ import com.gut.quiz.dto.AuthorizationRequest;
 import com.gut.quiz.dto.AuthorizationResponse;
 import com.gut.quiz.model.User;
 import com.gut.quiz.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -36,7 +37,7 @@ public class AuthorizationService {
                     .build();
         }
     }
-
+    @Transactional
     public AuthorizationResponse registerTeacher(AuthorizationRequest authorizationRequest) {
         String code = authorizationRequest.getCode();
 
