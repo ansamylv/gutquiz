@@ -11,5 +11,9 @@ public class DashboardDTO {
     private int totalTests;
     private int totalStudents;
     private double averageScore;
+    private int activeTests;
+    private int completedTests;
+    private int draftTests;
     private List<TestSummary> recentTests;
+    private List<TestSummary> allTests;
 }

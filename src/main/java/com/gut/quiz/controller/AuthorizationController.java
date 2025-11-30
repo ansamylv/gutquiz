@@ -11,19 +11,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 @SuppressWarnings("unused")
 @RestController
-@RequestMapping(path = "/auth")
+@RequestMapping(path = "/api/auth")
 @RequiredArgsConstructor
 public class AuthorizationController {
 
     private final AuthorizationService authorizationService;
 
-    @PostMapping("/login")
+    @PostMapping({"/authorize", "/login"})
     @SuppressWarnings("unused")
-    public AuthorizationResponse loginUser(@RequestBody AuthorizationRequest authorizationRequest) {
+    public AuthorizationResponse authorizeUser(@RequestBody AuthorizationRequest authorizationRequest) {
         return authorizationService.authorize(authorizationRequest);
     }
 
-    @PostMapping("/register/teacher")
+    @PostMapping({"/register/teacher", "/register"})
     @SuppressWarnings("unused")
     public AuthorizationResponse registerTeacher(@RequestBody AuthorizationRequest authorizationRequest) {
         return authorizationService.registerTeacher(authorizationRequest);

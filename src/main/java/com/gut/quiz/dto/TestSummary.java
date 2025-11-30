@@ -12,4 +12,7 @@ public class TestSummary {
     private double averageScore;
     private String status;
     private String date;
+    private boolean active;
+    private boolean published;
+    private String publicLink;
 }

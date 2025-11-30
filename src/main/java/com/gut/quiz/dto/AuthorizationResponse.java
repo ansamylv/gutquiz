@@ -8,6 +8,7 @@ import lombok.Data;
 public class AuthorizationResponse {
     private boolean success;
     private String message;
+    private String code;
     private String firstName;
     private String lastName;
     private String middleName;

@@ -63,6 +63,7 @@ public class TestService {
                 .description(savedTest.getDescription())
                 .publicLink(savedTest.getPublicLink())
                 .isPublished(savedTest.isPublished())
+                .isActive(savedTest.isActive())
                 .questions(new ArrayList<>())
                 .build();
     }
@@ -82,6 +83,7 @@ public class TestService {
                 .description(test.getDescription())
                 .publicLink(test.getPublicLink())
                 .isPublished(test.isPublished())
+                .isActive(test.isActive())
                 .questions(new ArrayList<>())
                 .build();
     }
@@ -99,6 +101,35 @@ public class TestService {
                 .description(test.getDescription())
                 .publicLink(test.getPublicLink())
                 .isPublished(test.isPublished())
+                .isActive(test.isActive())
+                .questions(questionDtos)
+                .build();
+    }
+
+    @Transactional
+    public TestResponse updateTest(Long id, com.gut.quiz.dto.UpdateTestRequest request, String teacherCode) {
+        Test test = findTestAndCheckOwner(id, teacherCode);
+
+        if (request.getTitle() != null && !request.getTitle().trim().isEmpty()) {
+            test.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            test.setDescription(request.getDescription());
+        }
+
+        Test savedTest = testRepository.save(test);
+
+        List<QuestionDto> questionDtos = savedTest.getQuestions().stream()
+                .map(this::mapToQuestionDto)
+                .collect(Collectors.toList());
+
+        return TestResponse.builder()
+                .id(savedTest.getId())
+                .title(savedTest.getTitle())
+                .description(savedTest.getDescription())
+                .publicLink(savedTest.getPublicLink())
+                .isPublished(savedTest.isPublished())
+                .isActive(savedTest.isActive())
                 .questions(questionDtos)
                 .build();
     }
@@ -133,6 +164,16 @@ public class TestService {
             throw new RuntimeException("Нельзя опубликовать тест без вопросов.");
         }
         test.setPublished(publish);
+        testRepository.save(test);
+    }
+
+    @Transactional
+    public void finishTest(Long id, String teacherCode) {
+        Test test = findTestAndCheckOwner(id, teacherCode);
+        if (!test.isActive()) {
+            return;
+        }
+        test.setActive(false);
         testRepository.save(test);
     }
 
