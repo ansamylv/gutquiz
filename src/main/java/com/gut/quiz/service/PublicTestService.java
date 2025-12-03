@@ -21,7 +21,6 @@ public class PublicTestService {
     private final TestRepository testRepository;
     private final TestSessionRepository testSessionRepository;
 
-    // ... (методы getTestByLink и convertToPublicQuestion остаются без изменений) ...
     public StudentTestResponse getTestByLink(String link) {
         Test test = testRepository.findByPublicLinkAndIsPublishedTrue(link)
                 .orElseThrow(() -> new RuntimeException("Тест не найден или не опубликован"));
@@ -52,15 +51,12 @@ public class PublicTestService {
                 .answers(publicAnswers)
                 .build();
     }
-    // ... (конец неизменных методов) ...
-
 
     @Transactional
     public TestPassingResponse submitTestByLink(String link, TestPassingRequest request) {
         Test test = testRepository.findByPublicLinkAndIsPublishedTrue(link)
                 .orElseThrow(() -> new RuntimeException("Тест не найден или не опубликован"));
 
-        // 🏆 ВЫЗОВ РЕАЛЬНОЙ ЛОГИКИ (ЗАГЛУШКА УДАЛЕНА)
         TestResult result = calculateResult(test, request.getAnswers());
 
         TestSession session = new TestSession();
@@ -77,7 +73,6 @@ public class PublicTestService {
 
         return TestPassingResponse.builder()
                 .score(result.getScore())
-                // 🏆 ЗАГЛУШКИ УДАЛЕНЫ (используются реальные данные из result)
                 .correctAnswersCount(result.getCorrectAnswers())
                 .totalQuestionsCount(result.getTotalQuestions())
                 .message("Тест успешно сдан")
@@ -85,7 +80,7 @@ public class PublicTestService {
     }
 
     /**
-     * Внутренний вспомогательный класс для возврата результатов подсчета.
+     * Вспомогательный класс для возврата результатов подсчета.
      */
     private static class TestResult {
         private final double score;
@@ -103,23 +98,21 @@ public class PublicTestService {
         public int getTotalQuestions() { return totalQuestions; }
     }
 
-    /**
-     * 🏆 РЕАЛЬНАЯ ЛОГИКА ПОДСЧЕТА БАЛЛОВ (ЗАГЛУШКА УДАЛЕНА)
-     */
     private TestResult calculateResult(Test test, List<QuestionAnswer> studentAnswers) {
-        // Создаем карту ответов студента для быстрого доступа по ID вопроса
-        Map<Long, QuestionAnswer> studentAnswerMap = studentAnswers.stream()
+        // На всякий случай защищаемся от null, чтобы не было NPE при stream()
+        List<QuestionAnswer> safeAnswers = studentAnswers != null ? studentAnswers : List.of();
+
+        Map<Long, QuestionAnswer> studentAnswerMap = safeAnswers.stream()
                 .collect(Collectors.toMap(QuestionAnswer::getQuestionId, answer -> answer));
 
         int correctAnswersCount = 0;
         int totalQuestions = test.getQuestions().size();
 
-        // Проходим по каждому вопросу из базы данных
         for (Question question : test.getQuestions()) {
             QuestionAnswer studentAnswer = studentAnswerMap.get(question.getId());
 
             if (studentAnswer == null) {
-                continue; // Студент пропустил вопрос, ответ не засчитан
+                continue;
             }
 
             boolean isCorrect = false;
@@ -140,13 +133,11 @@ public class PublicTestService {
             }
         }
 
-        // Расчет процента
         double score = (totalQuestions > 0) ? ((double) correctAnswersCount / totalQuestions) * 100.0 : 0.0;
 
         return new TestResult(score, correctAnswersCount, totalQuestions);
     }
 
-    // Логика для SINGLE (без изменений)
     private boolean checkSingleAnswer(Question question, QuestionAnswer studentAnswer) {
         Long correctAnswerId = question.getAnswers().stream()
                 .filter(Answer::isCorrect)
@@ -160,7 +151,6 @@ public class PublicTestService {
                 studentAnswer.getSelectedAnswerIds().get(0).equals(correctAnswerId);
     }
 
-    // Логика для MULTIPLE (без изменений)
     private boolean checkMultipleAnswer(Question question, QuestionAnswer studentAnswer) {
         List<Long> correctAnswerIds = question.getAnswers().stream()
                 .filter(Answer::isCorrect)
@@ -177,17 +167,12 @@ public class PublicTestService {
                 correctAnswerIds.containsAll(selectedIds);
     }
 
-    /**
-     * 🏆 РЕАЛЬНАЯ ЛОГИКА ПРОВЕРКИ ТЕКСТА (ЗАГЛУШКА УДАЛЕНА)
-     */
     private boolean checkTextAnswer(Question question, QuestionAnswer studentAnswer) {
-        // Ответ студента
         String studentText = studentAnswer.getTextAnswer();
         if (studentText == null || studentText.trim().isEmpty()) {
             return false;
         }
 
-        // Правильный ответ из базы данных (первый найденный 'isCorrect' ответ)
         String correctAnswer = question.getAnswers().stream()
                 .filter(Answer::isCorrect)
                 .findFirst()
@@ -195,11 +180,9 @@ public class PublicTestService {
                 .orElse(null);
 
         if (correctAnswer == null) {
-            // Вопрос настроен некорректно (нет правильного ответа)
             return false;
         }
 
-        // Сравнение без учета регистра и пробелов по краям
         return studentText.trim().equalsIgnoreCase(correctAnswer.trim());
     }
 }
