@@ -21,9 +21,6 @@ public class TestService {
     private final UserRepository userRepository;
     private final TestSessionRepository testSessionRepository;
 
-    // ======================================================================================
-    //                           АВТОРИЗАЦИЯ И ПРОВЕРКИ
-    // ======================================================================================
 
     private User findTeacher(String teacherCode) {
         return userRepository.findByCode(teacherCode)
@@ -40,10 +37,6 @@ public class TestService {
         }
         return test;
     }
-
-    // ======================================================================================
-    //                           МЕТОДЫ УЧИТЕЛЯ (CRUD, УПРАВЛЕНИЕ)
-    // ======================================================================================
 
     @Transactional
     public TestResponse createTest(CreateTestRequest request, String teacherCode) {
@@ -153,6 +146,11 @@ public class TestService {
 
     public void deleteTest(Long id, String teacherCode) {
         Test test = findTestAndCheckOwner(id, teacherCode);
+
+        // Сначала удаляем все сессии прохождения этого теста,
+        // чтобы не нарушить внешние ключи в базе данных.
+        testSessionRepository.deleteByTestId(id);
+
         testRepository.delete(test);
     }
 
@@ -219,23 +217,17 @@ public class TestService {
         testRepository.save(test);
     }
 
-    // 9. Получение статистики теста
     public TestStatsResponse getTestStats(Long id, String teacherCode) {
         Test test = findTestAndCheckOwner(id, teacherCode);
 
-        // 1. Считаем только ЗАВЕРШЕННЫЕ сессии
         int completedSessions = testSessionRepository.countByTestIdAndIsCompletedTrue(id);
 
-        // 2. Считаем ВСЕ сессии (для определения активных)
         int allSessionsCount = testSessionRepository.countByTestId(id);
 
-        // 3. Вычисляем активные сессии (незавершенные)
         int activeSessions = allSessionsCount - completedSessions;
 
-        // 4. Находим средний балл только по ЗАВЕРШЕННЫМ сессиям
         Double averageScore = testSessionRepository.findAverageScoreByTest(test);
 
-        // 5. ИСПРАВЛЕНИЕ: Получаем результаты ТОЛЬКО ЗАВЕРШЕННЫХ сессий
         List<TestSession> completedSessionsList = testSessionRepository.findByTestIdAndIsCompletedTrue(id);
 
         List<StudentResult> results = completedSessionsList.stream()

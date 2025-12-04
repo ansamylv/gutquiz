@@ -79,9 +79,6 @@ public class PublicTestService {
                 .build();
     }
 
-    /**
-     * Вспомогательный класс для возврата результатов подсчета.
-     */
     private static class TestResult {
         private final double score;
         private final int correctAnswers;
@@ -99,7 +96,6 @@ public class PublicTestService {
     }
 
     private TestResult calculateResult(Test test, List<QuestionAnswer> studentAnswers) {
-        // На всякий случай защищаемся от null, чтобы не было NPE при stream()
         List<QuestionAnswer> safeAnswers = studentAnswers != null ? studentAnswers : List.of();
 
         Map<Long, QuestionAnswer> studentAnswerMap = safeAnswers.stream()

@@ -7,13 +7,18 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
+@Repository // Помечает как репозиторий Spring
 public interface TestRepository extends JpaRepository<Test, Long> {
-    int countByTeacher(User teacher);
-    int countByTeacherAndIsActiveTrue(User teacher);
-    List<Test> findByTeacher(User teacher);
+
+    int countByTeacher(User teacher); // Подсчет всех тестов преподавателя
+
+    int countByTeacherAndIsActiveTrue(User teacher); // Подсчет активных тестов
+
+    List<Test> findByTeacher(User teacher); // Найти все тесты преподавателя
 
     // Дополнительные полезные методы:
+
+    // Найти опубликованный тест по публичной ссылке (для студента)
     Optional<Test> findByPublicLinkAndIsPublishedTrue(String publicLink);
 
 }

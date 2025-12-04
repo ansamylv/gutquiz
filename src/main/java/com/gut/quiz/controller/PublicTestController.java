@@ -15,11 +15,13 @@ public class PublicTestController {
 
     private final PublicTestService publicTestService;
 
+    // Студент получает тест по публичной ссылке
     @GetMapping("/{link}")
     public StudentTestResponse getPublicTest(@PathVariable String link) {
         return publicTestService.getTestByLink(link);
     }
 
+    // Студент отправляет ответы по публичной ссылке
     @PostMapping("/{link}/submit")
     public TestPassingResponse submitPublicTest(
             @PathVariable String link,

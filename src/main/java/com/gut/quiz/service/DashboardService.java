@@ -22,18 +22,14 @@ public class DashboardService {
     private final TestSessionRepository testSessionRepository;
     private final UserRepository userRepository;
 
-    /**
-     * Вспомогательный метод для получения текущего преподавателя
-     */
     private User getTeacher(String userCode) {
         return userRepository.findByCode(userCode)
                 .orElseThrow(() -> new RuntimeException("Преподаватель не найден. Невозможно получить данные дашборда."));
     }
 
     @Transactional(readOnly = true)
-    // Метод теперь принимает userCode
     public DashboardDTO getDashboardData(String userCode) {
-        User teacher = getTeacher(userCode); // <-- Замена заглушки!
+        User teacher = getTeacher(userCode);
 
         int totalTests = testRepository.countByTeacher(teacher);
         int totalStudents = testSessionRepository.countDistinctStudentsByTeacher(teacher);

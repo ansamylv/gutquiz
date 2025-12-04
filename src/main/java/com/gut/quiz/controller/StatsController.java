@@ -1,5 +1,3 @@
-// /controller/StatsController.java
-
 package com.gut.quiz.controller;
 
 import com.gut.quiz.dto.UserStats;
@@ -20,7 +18,6 @@ public class StatsController {
 
     @GetMapping
     public UserStats getCurrentUserStats(
-            // Читаем код преподавателя из заголовка X-User-Code
             @RequestHeader("X-User-Code") String userCode) {
 
         return statsService.getCurrentUserStats(userCode);

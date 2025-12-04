@@ -34,4 +34,7 @@ public interface TestSessionRepository extends JpaRepository<TestSession, Long> 
 
     @Query("SELECT ts FROM TestSession ts WHERE ts.test.id = :testId AND ts.isCompleted = true")
     List<TestSession> findByTestIdAndIsCompletedTrue(@Param("testId") Long testId);
+
+    // Для каскадного удаления всех сессий при удалении теста
+    void deleteByTestId(Long testId);
 }

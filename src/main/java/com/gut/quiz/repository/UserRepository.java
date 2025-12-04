@@ -5,7 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
-@Repository
+@Repository // Помечает как репозиторий Spring
 public interface UserRepository extends JpaRepository<User, Long> {
+
+    // Кастомный метод: поиск пользователя по коду (логину)
     Optional<User> findByCode(String code);
 }
