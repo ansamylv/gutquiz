@@ -143,7 +143,7 @@ public class TestService {
                 .answers(answerDtos)
                 .build();
     }
-
+    @Transactional
     public void deleteTest(Long id, String teacherCode) {
         Test test = findTestAndCheckOwner(id, teacherCode);
 

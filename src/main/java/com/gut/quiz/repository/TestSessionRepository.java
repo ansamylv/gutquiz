@@ -3,6 +3,7 @@ package com.gut.quiz.repository;
 import com.gut.quiz.model.Test;
 import com.gut.quiz.model.TestSession;
 import com.gut.quiz.model.User;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,5 +37,6 @@ public interface TestSessionRepository extends JpaRepository<TestSession, Long> 
     List<TestSession> findByTestIdAndIsCompletedTrue(@Param("testId") Long testId);
 
     // Для каскадного удаления всех сессий при удалении теста
+    @Modifying
     void deleteByTestId(Long testId);
 }
